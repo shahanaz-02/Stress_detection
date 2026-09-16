@@ -43,3 +43,9 @@ venv.bak/
 
 # Database journal files
 *.db-journal
+
+# Raw heavy datasets
+data/raw/
+*.zip
+*.pkl.gz
+

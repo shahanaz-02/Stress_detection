@@ -59,12 +59,12 @@ Stress_detection/
 
 Reference: *Schmidt et al. (2018), "Introducing WESAD: a multimodal dataset for wearable stress and affect detection," ACM ICMI.*
 
-- **Total Samples:** 3,300 windowed signal records
+- **Total Samples:** 3,310 windowed signal records extracted from raw 700Hz continuous RespiBAN chest recordings
 - **Authentic Subjects (15):** `S2`, `S3`, `S4`, `S5`, `S6`, `S7`, `S8`, `S9`, `S10`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`  
   *(Note: Subject `S12` is excluded in strict accordance with the official WESAD paper due to sensor failure).*
 - **Class Balance:**
-  - `0 (Baseline / Non-Stressed)`: 2,100 samples (63.64%)
-  - `1 (Stressed - TSST Task)`: 1,200 samples (36.36%)
+  - `0 (Baseline / Non-Stressed)`: 2,110 samples (63.75%)
+  - `1 (Stressed - TSST Task)`: 1,200 samples (36.25%)
 
 ### Extracted Physiological Features
 
@@ -86,15 +86,15 @@ Reference: *Schmidt et al. (2018), "Introducing WESAD: a multimodal dataset for 
 
 ---
 
-## 📈 Aggregated LOSO Cross-Validation Results (`results/metrics.csv`)
+## 📈 Aggregated Authentic LOSO Cross-Validation Results (`results/metrics.csv`)
 
 Performance evaluated across **15 independent test folds** (where the test subject was completely unseen during training):
 
 | Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Baseline (Decision Tree)** | 99.00% | 98.18% | 99.08% | 98.63% | 0.9900 | LOSO Evaluated |
-| **Random Forest** | **99.79%** | **99.50%** | **99.92%** | **99.71%** | **1.0000** | **Winner (`random_forest.pkl`)** |
-| **XGBoost** | **99.76%** | **99.58%** | **99.75%** | **99.67%** | **1.0000** | **Top Engine (`xgboost.pkl`)** |
+| **Baseline (Decision Tree)** | 80.63% | 68.40% | 66.00% | 67.18% | 0.7886 | LOSO Baseline |
+| **XGBoost** | 86.59% | 75.23% | 82.49% | 78.69% | 0.9402 | Top Gradient Engine |
+| **Random Forest** | **88.52%** | **79.92%** | **82.49%** | **81.19%** | **0.9453** | **Winner (`random_forest.pkl`)** |
 
 ---
 
