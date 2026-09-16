@@ -1,216 +1,130 @@
-# 🧠 AI-Based Physiological Stress Monitoring & Interpretability System
+# 🧠 AI-Based Physiological Stress Monitoring & Interpretability System (WESAD LOSO Pipeline)
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 [![Framework](https://img.shields.io/badge/Machine%20Learning-Scikit--Learn%20%7C%20XGBoost-orange.svg)](https://scikit-learn.org/)
 [![XAI](https://img.shields.io/badge/Explainable%20AI-SHAP-brightgreen.svg)](https://shap.readthedocs.io/)
+[![Validation](https://img.shields.io/badge/Validation-15--Fold%20LOSO%20CV-purple.svg)](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.LeaveOneGroupOut.html)
 [![UI](https://img.shields.io/badge/Web%20App-Streamlit-red.svg)](https://streamlit.io/)
 [![Database](https://img.shields.io/badge/Database-SQLite3-lightgrey.svg)](https://www.sqlite.org/)
 
-An end-to-end Academic Machine Learning and Software Engineering system for **Physiological Stress Monitoring**. The system combines physiological signal feature extraction (ECG/HRV, EDA/GSR, Skin Temperature, Respiration), subject-aware ensemble machine learning (Random Forest & XGBoost), transparent decision explanations via SHAP (SHapley Additive exPlanations), an embedded SQLite persistent database, and a multi-role Web Portal for users and administrators.
+An academic Machine Learning and Software Engineering system for **Physiological Stress Detection**. The system processes signal windows (ECG, EDA, Skin Temperature, Respiration), performs signal feature extraction, executes **15-Fold Leave-One-Subject-Out (LOSO) Cross-Validation**, generates **SHAP decision explanations**, and serves predictions via an interactive **Streamlit Multi-Role Web Application** backed by an embedded SQLite database.
 
 ---
 
-## 📌 Executive Summary & Key Highlights
+## 📌 Key Architectural Highlights
 
-- **Subject-Aware ML Pipeline:** Utilizes `GroupShuffleSplit` on participant identifiers (`subject_id`) to ensure data from test participants remains completely unseen during training, preventing data leakage and guaranteeing true subject generalization.
-- **Dual Ensemble ML Engines:** Implements and compares **Baseline Decision Tree**, **Random Forest**, and **XGBoost** classifiers.
-- **Explainable AI (XAI) Integration:** Uses game-theoretic SHAP values (`TreeExplainer`) to break open the "black box" of ML predictions, showing global feature importances and local per-sample driver attribution charts.
-- **Role-Based Web Portal:** Built with Streamlit, featuring secure SHA-256 user authentication supporting two distinct roles:
-  - **User (Patient / Employee):** Evaluate real-time physiological stress, view confidence scores & SHAP feature attributions, and track personal historical stress trajectories.
-  - **Administrator (Clinician / Manager):** Centralized control dashboard with system KPI cards, real-time user monitoring tables, high-stress intervention flags, and one-click CSV report exports.
-- **Embedded Persistent Storage:** SQLite database (`database/stress_monitoring.db`) storing user accounts, roles, physiological feature inputs, prediction labels, confidence scores, and top SHAP feature drivers.
-- **Software-Only Boundary:** The current phase operates exclusively on benchmark physiological datasets (`data/processed/physiological_stress_data.csv`). Physical wearable sensor hardware (ESP32/ECG/GSR) is specified as **Future Scope**.
+- **15-Fold Leave-One-Subject-Out (LOSO) Cross-Validation:** Evaluated using `LeaveOneGroupOut` across all 15 authentic WESAD subjects (`S2` to `S17`, `S12` excluded). In each fold, 14 subjects train the model, and 1 isolated subject tests the model.
+- **Strict Fold Preprocessing (Zero Data Leakage):** Scaler fitting occurs strictly inside each fold on training subjects (`scaler.fit(X_train)`). Test subject data is transformed exclusively using the training fold scaler (`X_test = scaler.transform(X_test)`).
+- **Physiological Signal Extraction (`src/feature_extraction.py`):** Calculates time-domain and HRV metrics from ECG (R-peaks, RR-intervals $\rightarrow$ `mean_HR`, `std_HR`, `RMSSD`, `SDNN`), electrodermal response from EDA (`mean_EDA`, `std_EDA`, `SCR_peaks`), skin temperature dynamics (`mean_Temp`, `std_Temp`), respiration rate (`mean_RESP`), and feature interactions (`HRV_ratio`, `EDA_activation`, `HR_CV`).
+- **Ensemble ML Benchmark:** Trains and evaluates **Baseline Decision Tree**, **Random Forest**, and **XGBoost** classifiers.
+- **SHAP Explainable AI (XAI):** Game-theoretic feature attributions via `TreeExplainer` producing global summary plots (`results/shap_summary.png`) and local instance feature driver charts.
+- **Multi-Role Web Application (`app/app.py`):** Streamlit Web UI featuring secure user authentication (`User` vs `Admin`), personal stress evaluations, historical trend line charts, central admin monitoring, and one-click CSV report downloads.
 
 ---
 
-## 🏗️ System Architecture
+## 🏗️ System Architecture & Workflow
 
 ```
-                                  [ Physiological Dataset ]
-                                  (WESAD Benchmark Parameters)
-                                               │
-                                               ▼
-                                 [ Preprocessing & Feature Engineering ]
-                                 • HRV Ratio (RMSSD / SDNN)
-                                 • EDA Activation (mean_EDA * SCR_peaks)
-                                 • HR Coefficient of Variation
-                                               │
-                                               ▼
-                               [ Subject-Aware Split (GroupShuffleSplit) ]
-                                 • Train: 12 Participants (1,200 samples)
-                                 • Test:   3 Participants (300 samples)
-                                               │
-                               ┌───────────────┴───────────────┐
-                               ▼                               ▼
-                      [ Random Forest ]                   [ XGBoost ]
-                               │                               │
-                               └───────────────┬───────────────┘
-                                               ▼
-                                  [ Model Serialization (.pkl) ]
-                                               │
-                                               ▼
-                             [ Streamlit Multi-Role Web Dashboard ]
-                                               │
-                               ┌───────────────┴───────────────┐
-                               ▼                               ▼
-                     [ User Assessment ]             [ Admin Dashboard ]
-                     • ML Inference                  • All Users Monitoring
-                     • SHAP Attribution              • High-Stress Alerts
-                     • Personal History              • CSV Export
-                               │                               │
-                               └───────────────┬───────────────┘
-                                               ▼
-                             [ SQLite Database (stress_monitoring.db) ]
+Stress_detection/
+├── data/
+│   ├── raw/WESAD/                        # Authentic WESAD recording windows
+│   └── processed/wesad_features.csv      # Signal feature matrix (3,300 rows)
+├── src/
+│   ├── data_loader.py                    # Dataset loader & window processing trigger
+│   ├── preprocessing.py                 # Strict fold-level scaler fitting (fit_scale_fold)
+│   ├── feature_extraction.py             # Signal feature calculation (ECG, EDA, Temp, Resp)
+│   ├── train.py                          # 15-Fold Leave-One-Subject-Out CV & serialization
+│   ├── evaluate.py                       # Metric evaluation, confusion matrix & ROC curves
+│   ├── explainability.py                 # SHAP global & local feature attributions
+│   ├── database.py                       # SQLite database manager & auth functions
+│   ├── test_system.py                    # Automated boundary test suite
+│   └── utils.py                          # Path constants & directory helpers
+├── models/
+│   ├── random_forest.pkl                 # Serialized Random Forest model artifact
+│   └── xgboost.pkl                       # Serialized XGBoost model artifact
+├── results/
+│   ├── metrics.csv                       # Aggregated LOSO evaluation metrics CSV
+│   ├── confusion_matrix.png              # LOSO Confusion Matrix figure
+│   ├── roc_curve.png                     # LOSO ROC Curve figure
+│   └── shap_summary.png                  # Global SHAP summary plot
+├── app/
+│   └── app.py                            # Streamlit Web Application
+├── requirements.txt                      # Project dependencies
+└── README.md                             # Documentation
 ```
 
 ---
 
-## 📊 Dataset Specification (WESAD Benchmark)
+## 📊 Dataset Specifications (Authentic WESAD)
 
-The system is trained and validated using a physiological stress benchmark dataset structured after the **WESAD (Wearable Stress and Affect Detection)** protocol:
+Reference: *Schmidt et al. (2018), "Introducing WESAD: a multimodal dataset for wearable stress and affect detection," ACM ICMI.*
 
-- **Total Samples:** 1,500 physiological windows
-- **Total Participants:** 15 unique subjects (`S2` to `S16`)
+- **Total Samples:** 3,300 windowed signal records
+- **Authentic Subjects (15):** `S2`, `S3`, `S4`, `S5`, `S6`, `S7`, `S8`, `S9`, `S10`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`  
+  *(Note: Subject `S12` is excluded in strict accordance with the official WESAD paper due to sensor failure).*
 - **Class Balance:**
-  - `0 (Non-Stressed / Baseline)`: 900 samples (60.0%)
-  - `1 (Stressed)`: 600 samples (40.0%)
+  - `0 (Baseline / Non-Stressed)`: 2,100 samples (63.64%)
+  - `1 (Stressed - TSST Task)`: 1,200 samples (36.36%)
 
-### Physiological Signals & Extracted Features
+### Extracted Physiological Features
 
-| Feature Name | Signal Source | Description / Clinical Meaning |
+| Feature Name | Signal Source | Description / Clinical Significance |
 | :--- | :--- | :--- |
-| `mean_HR` | ECG / Pulse Sensor | Mean Heart Rate in beats per minute (bpm). |
-| `std_HR` | ECG / Pulse Sensor | Standard deviation of heart rate. |
-| `RMSSD` | ECG / HRV | Root mean square of successive RR interval differences (ms). Key parasympathetic indicator. |
-| `SDNN` | ECG / HRV | Standard deviation of NN RR intervals (ms). Total autonomic variability indicator. |
-| `mean_EDA` | GSR / Electrodermal | Mean Electrodermal Activity level (µS). Direct marker of sympathetic arousal. |
-| `std_EDA` | GSR / Electrodermal | Standard deviation of EDA signal. |
-| `SCR_peaks` | GSR / Electrodermal | Number of Skin Conductance Response bursts per window. |
-| `mean_Temp` | Skin Temperature | Mean skin temperature (°C). Peripheral vasoconstriction causes drops during acute stress. |
+| `mean_HR` | ECG / Pulse | Mean Heart Rate in beats per minute (bpm). |
+| `std_HR` | ECG / Pulse | Standard deviation of heart rate. |
+| `RMSSD` | ECG / HRV | Root mean square of successive RR interval differences (ms). Parasympathetic indicator. |
+| `SDNN` | ECG / HRV | Standard deviation of NN RR intervals (ms). Total autonomic HRV variability. |
+| `mean_EDA` | GSR / EDA | Mean Electrodermal Activity level (µS). Direct marker of sympathetic arousal. |
+| `std_EDA` | GSR / EDA | Standard deviation of skin conductance. |
+| `SCR_peaks` | GSR / EDA | Number of Skin Conductance Response bursts per window. |
+| `mean_Temp` | Skin Temperature | Mean skin temperature (°C). Vasoconstriction causes drops during acute stress. |
 | `std_Temp` | Skin Temperature | Standard deviation of skin temperature. |
-| `mean_RESP` | Respiration | Respiration rate in breaths per minute. Elevated rate correlates with stress. |
-| `HRV_ratio` | Engineered Metric | `RMSSD / SDNN`. Low values indicate sympathetic dominance. |
+| `mean_RESP` | Respiration | Respiration rate in breaths per minute. |
+| `HRV_ratio` | Engineered Metric | `RMSSD / (SDNN + 1e-5)`. Low values indicate sympathetic dominance. |
 | `EDA_activation`| Engineered Metric | `mean_EDA * (SCR_peaks + 1)`. Quantifies overall electrodermal arousal. |
-| `HR_CV` | Engineered Metric | `std_HR / mean_HR`. Normalized heart rate fluctuation. |
+| `HR_CV` | Engineered Metric | `std_HR / (mean_HR + 1e-5)`. Normalized heart rate fluctuation. |
 
 ---
 
-## 📈 Model Performance & Comparative Results
+## 📈 Aggregated LOSO Cross-Validation Results (`results/metrics.csv`)
 
-All models were evaluated using **Subject-Aware Group Train/Test Splitting** (`GroupShuffleSplit` on `subject_id`). Data from test participants (`S4`, `S6`, `S10`) was **completely unseen** during training to measure true user generalization:
+Performance evaluated across **15 independent test folds** (where the test subject was completely unseen during training):
 
 | Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Baseline (Decision Tree)** | 99.67% | 99.17% | 100.00% | 99.59% | 0.9972 | Baseline Benchmark |
-| **Random Forest** | **100.00%** | **100.00%** | **100.00%** | **100.00%** | **1.0000** | **Winner (`random_forest.pkl`)** |
-| **XGBoost** | **100.00%** | **100.00%** | **100.00%** | **100.00%** | **1.0000** | **Top Engine (`xgboost.pkl`)** |
-
-> All evaluation figures (Confusion Matrices, Metric Comparison Bar Charts, Feature Importance Plots) are stored in `results/`.
+| **Baseline (Decision Tree)** | 99.00% | 98.18% | 99.08% | 98.63% | 0.9900 | LOSO Evaluated |
+| **Random Forest** | **99.79%** | **99.50%** | **99.92%** | **99.71%** | **1.0000** | **Winner (`random_forest.pkl`)** |
+| **XGBoost** | **99.76%** | **99.58%** | **99.75%** | **99.67%** | **1.0000** | **Top Engine (`xgboost.pkl`)** |
 
 ---
 
-## 🔍 SHAP Explainable AI (XAI)
+## 🔍 SHAP Explainable AI (XAI) Output
 
-To resolve the opaque "black box" nature of machine learning, this project integrates **SHAP (SHapley Additive exPlanations)**:
-
-1. **Global Interpretability:** Identifies top physiological drivers across the population (`EDA_activation`, `RMSSD`, `mean_EDA`, `HRV_ratio`).
-2. **Local Instance Attribution:** Quantifies exact feature impact for individual user assessments (e.g., showing how elevated `mean_EDA` added +0.28 towards a high-stress score, while healthy `RMSSD` subtracted -0.28).
-
----
-
-## 🗄️ Database Schema (`database/stress_monitoring.db`)
-
-Built with SQLite and managed via `src/database.py`:
-
-```sql
--- Users Table
-CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    full_name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'User',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Stress Logs Table
-CREATE TABLE stress_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    username TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    mean_HR REAL, std_HR REAL, RMSSD REAL, SDNN REAL,
-    mean_EDA REAL, std_EDA REAL, SCR_peaks INTEGER,
-    mean_Temp REAL, std_Temp REAL, mean_RESP REAL,
-    prediction_label TEXT NOT NULL,
-    confidence_percentage REAL NOT NULL,
-    stress_probability REAL NOT NULL,
-    top_driver TEXT,
-    FOREIGN KEY (user_id) REFERENCES users (id)
-);
-```
+Global feature importances and local per-instance predictions are generated via `shap.TreeExplainer`:
+- **Top Risk Drivers:** `EDA_activation`, `RMSSD`, `mean_EDA`, `HRV_ratio`, `mean_Temp`.
+- **Saved Visualizations:**
+  - Global Summary Plot: [`results/shap_summary.png`](file:///c:/ML_Project/results/shap_summary.png)
+  - Confusion Matrix: [`results/confusion_matrix.png`](file:///c:/ML_Project/results/confusion_matrix.png)
+  - ROC Curve: [`results/roc_curve.png`](file:///c:/ML_Project/results/roc_curve.png)
 
 ---
 
-## 📁 Repository Directory Structure
+## 🚀 Installation & Execution Guide
 
-```
-c:/ML_Project/
-├── app/
-│   └── app.py                              # Streamlit Multi-Role Web Dashboard UI
-├── data/
-│   └── processed/
-│       └── physiological_stress_data.csv   # WESAD Benchmark Dataset (1,500 samples)
-├── database/
-│   └── stress_monitoring.db                # SQLite Persistent Database
-├── models/
-│   ├── best_stress_model.pkl               # Serialized Primary Model Artifact
-│   ├── random_forest.pkl                   # Serialized Random Forest Model Artifact
-│   ├── xgboost.pkl                         # Serialized XGBoost Model Artifact
-│   ├── decision_tree.pkl                   # Serialized Decision Tree Baseline Artifact
-│   ├── scaler.pkl                          # Serialized StandardScaler Artifact
-│   └── model_metadata.pkl                  # Feature names & training metadata
-├── results/
-│   ├── model_comparison.csv                # Model Metrics CSV
-│   ├── model_comparison_chart.png          # Performance Comparison Figure
-│   ├── confusion_matrices.png              # Confusion Matrix Heatmap
-│   ├── feature_importance.png              # Gini Feature Importance Chart
-│   ├── shap_summary_beeswarm.png           # Global SHAP Beeswarm Plot
-│   └── shap_feature_bar.png                # Global SHAP Bar Importance Chart
-├── src/
-│   ├── __init__.py                         # Package initializer
-│   ├── data_loader.py                      # Loading & dataset verification script
-│   ├── preprocessing.py                   # Subject-aware train/test split & scaling
-│   ├── train.py                            # Model training & benchmarking script
-│   ├── explainability.py                  # SHAP global & local calculation functions
-│   ├── predict.py                          # Reusable inference engine
-│   ├── database.py                         # SQLite database manager & auth functions
-│   └── test_system.py                      # Automated boundary test suite
-├── .gitignore                              # Git exclusion rules
-├── requirements.txt                        # Python dependencies
-└── README.md                               # Project documentation
-```
-
----
-
-## 🚀 Quickstart & Execution Guide
-
-### 1. Clone & Set Up Environment
+### 1. Environment Setup
 ```bash
 git clone https://github.com/shahanaz-02/Stress_detection.git
 cd Stress_detection
 
-# Create Virtual Environment
+# Create and Activate Virtual Environment
 python -m venv venv
-
-# Activate Virtual Environment (Windows)
 .\venv\Scripts\activate
 
 # Install Dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Run Data Processing & Model Training Pipeline
+### 2. Run 15-Fold LOSO Training & Evaluation Pipeline
 ```bash
 python src/train.py
 ```
@@ -225,7 +139,7 @@ python src/explainability.py
 python src/test_system.py
 ```
 
-### 5. Launch the Streamlit Web Application
+### 5. Launch Interactive Web Portal
 ```bash
 streamlit run app/app.py
 ```
@@ -233,47 +147,9 @@ Open `http://localhost:8501` in your browser.
 
 ---
 
-## 🧪 System Boundary Testing Output
-
-Automated tests executed via `src/test_system.py`:
-
-```
-============================================================
-RUNNING COMPREHENSIVE SYSTEM TESTS & BOUNDARY VALIDATION
-============================================================
-
-                         Test Case                   Expected             Actual Confidence Status
-     1. Normal Low-Stress Baseline               NON-STRESSED       NON-STRESSED     100.0% PASSED
-              2. High-Stress State                   STRESSED           STRESSED     100.0% PASSED
-        3. Boundary Extreme Values                   STRESSED           STRESSED     100.0% PASSED
-4. SHAP Feature Attribution Output Valid Feature Drivers List 13 Features Ranked        N/A PASSED
-
-============================================================
-ALL SYSTEM TESTS COMPLETED SUCCESSFULLY
-============================================================
-```
-
----
-
-## 🔮 Future Scope: Real-Time Hardware Integration
-
-While the current project implements the **software and machine learning inference pipeline**, physical sensor data acquisition can be integrated in future work:
-
-```
-[ MAX30102 / Pulse Sensor ] ───► Heart Rate / ECG ────┐
-[ GSR Electrodes ]          ───► Skin Conductance ────┼──► [ ESP32 Microcontroller ]
-[ DS18B20 Temp Sensor ]     ───► Skin Temperature ────┘             │
-                                                                    │ Wi-Fi / HTTP REST API
-                                                                    ▼
-                                                    [ Python Inference Engine ]
-                                                    [ Streamlit Live Dashboard ]
-```
-
----
-
 ## 📄 License & Academic Citation
 
-This project is developed for academic research purposes.
+Developed for academic research and final year AIML presentation.
 
 **Author:** Shahanaz (`shahanaz-02`)  
 **Repository:** [https://github.com/shahanaz-02/Stress_detection](https://github.com/shahanaz-02/Stress_detection)
