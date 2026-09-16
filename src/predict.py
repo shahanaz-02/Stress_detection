@@ -12,7 +12,7 @@ import sys
 import shap
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from preprocessing import engineer_physiological_features
+from feature_extraction import engineer_features_df
 
 class StressPredictionEngine:
     def __init__(self, models_dir: str = "models", model_file: str = "best_stress_model.pkl"):
@@ -54,7 +54,7 @@ class StressPredictionEngine:
         raw_df = pd.DataFrame([input_data])
         
         # Apply feature engineering
-        eng_df = engineer_physiological_features(raw_df)
+        eng_df = engineer_features_df(raw_df)
         
         # Select required features in identical column order
         X_raw = eng_df[self.feature_cols]

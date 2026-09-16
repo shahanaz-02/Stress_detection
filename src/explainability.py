@@ -1,104 +1,59 @@
 """
-Explainable AI (XAI) Module using SHAP
-Project: AI-Based Physiological Stress Monitoring System
-Stage: 11 - SHAP Explainable AI
+SHAP Explainability Module
+Project: AI-Based Physiological Stress Monitoring System (WESAD LOSO Pipeline)
+
+Outputs:
+- results/shap_summary.png
 """
 
 import os
+import sys
 import joblib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import shap
 
-from data_loader import load_and_inspect_dataset
-from preprocessing import prepare_subject_aware_split
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+from utils import MODELS_DIR, RESULTS_DIR, ensure_directories
+from data_loader import load_wesad_features
+from preprocessing import prepare_features_and_target
 
-def generate_shap_explanations(models_dir: str = "models", results_dir: str = "results", data_path: str = None):
-    """
-    Computes SHAP values using TreeExplainer on the best trained model.
-    Saves global summary plot and bar plot to results directory.
-    """
-    os.makedirs(results_dir, exist_ok=True)
+def generate_shap_visualizations():
+    ensure_directories()
     
-    best_model_path = os.path.join(models_dir, "best_stress_model.pkl")
-    scaler_path = os.path.join(models_dir, "scaler.pkl")
-    meta_path = os.path.join(models_dir, "model_metadata.pkl")
+    model_path = os.path.join(MODELS_DIR, "random_forest.pkl")
+    scaler_path = os.path.join(MODELS_DIR, "scaler.pkl")
     
-    if not os.path.exists(best_model_path):
-        raise FileNotFoundError(f"Trained model not found at {best_model_path}. Run src/train.py first.")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model not found at {model_path}. Run src/train.py first.")
         
-    model = joblib.load(best_model_path)
+    model = joblib.load(model_path)
     scaler = joblib.load(scaler_path)
-    meta = joblib.load(meta_path)
     
-    feature_cols = meta["feature_cols"]
-    model_name = meta["model_name"]
+    df = load_wesad_features()
+    X, y, _ = prepare_features_and_target(df)
+    X_scaled = pd.DataFrame(scaler.transform(X), columns=X.columns)
     
-    if data_path is None:
-        data_path = os.path.join("data", "processed", "physiological_stress_data.csv")
-        
-    df = load_and_inspect_dataset(data_path)
-    _, X_test, _, _, _, _ = prepare_subject_aware_split(df)
-    
-    print(f"\n[INFO] Computing SHAP values for model: {model_name}...")
+    print("\n[INFO] Computing SHAP values using TreeExplainer...")
     explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_test)
-    
-    # Handle single output vs binary output list format in shap
-    if isinstance(shap_values, list):
-        shap_vals_target = shap_values[1] # Class 1 (Stressed)
-    else:
-        shap_vals_target = shap_values
-
-    # 1. SHAP Summary Plot (Beeswarm)
-    plt.figure(figsize=(10, 6))
-    shap.summary_plot(shap_vals_target, X_test, show=False)
-    plt.title(f"SHAP Global Feature Attribution ({model_name})", fontsize=14, fontweight='bold')
-    plt.tight_layout()
-    shap_beeswarm_path = os.path.join(results_dir, "shap_summary_beeswarm.png")
-    plt.savefig(shap_beeswarm_path, dpi=300)
-    plt.close()
-    print(f"[INFO] Saved SHAP summary plot to: {shap_beeswarm_path}")
-
-    # 2. SHAP Bar Importance Plot
-    plt.figure(figsize=(10, 6))
-    shap.summary_plot(shap_vals_target, X_test, plot_type="bar", show=False)
-    plt.title(f"SHAP Mean |Value| Feature Importance ({model_name})", fontsize=14, fontweight='bold')
-    plt.tight_layout()
-    shap_bar_path = os.path.join(results_dir, "shap_feature_bar.png")
-    plt.savefig(shap_bar_path, dpi=300)
-    plt.close()
-    print(f"[INFO] Saved SHAP bar plot to: {shap_bar_path}")
-
-    return explainer, shap_vals_target, X_test
-
-def explain_single_sample(model, explainer, sample_row_df: pd.DataFrame):
-    """
-    Computes local SHAP explanation for an individual user prediction.
-    Returns sorted list of feature contributions.
-    """
-    shap_vals = explainer.shap_values(sample_row_df)
+    shap_vals = explainer.shap_values(X_scaled)
     
     if isinstance(shap_vals, list):
-        sample_shap = shap_vals[1][0]
-    elif len(shap_vals.shape) == 2:
-        sample_shap = shap_vals[0]
+        target_shap = shap_vals[1]
     else:
-        sample_shap = shap_vals
+        target_shap = shap_vals
         
-    explanation = []
-    for col, val, shap_val in zip(sample_row_df.columns, sample_row_df.values[0], sample_shap):
-        direction = "Increases Stress Risk" if shap_val > 0 else "Decreases Stress Risk"
-        explanation.append({
-            "feature": col,
-            "value": round(float(val), 3),
-            "shap_value": round(float(shap_val), 4),
-            "impact": direction
-        })
-        
-    explanation_df = pd.DataFrame(explanation).sort_values(by="shap_value", key=abs, ascending=False)
-    return explanation_df
+    # Save results/shap_summary.png
+    plt.figure(figsize=(10, 6))
+    shap.summary_plot(target_shap, X_scaled, show=False)
+    plt.title("SHAP Global Feature Importance (WESAD LOSO Pipeline)", fontsize=12, fontweight='bold')
+    plt.tight_layout()
+    
+    shap_summary_path = os.path.join(RESULTS_DIR, "shap_summary.png")
+    plt.savefig(shap_summary_path, dpi=300)
+    plt.close()
+    print(f"[SUCCESS] Saved SHAP summary plot to: {shap_summary_path}")
 
 if __name__ == "__main__":
-    generate_shap_explanations()
+    generate_shap_visualizations()
