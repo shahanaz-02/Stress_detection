@@ -277,18 +277,18 @@ current_user = st.session_state['user']
 @st.cache_resource
 def load_engine(model_file: str):
     models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
-    return StressPredictionEngine(models_dir=models_dir, model_file=model_file)
-
 # Sidebar Details (SHOW ML MODEL ENGINE ONLY WHEN LOGGED IN)
 st.sidebar.title("🛡️ Portal Access")
 st.sidebar.markdown(f"**User:** `{current_user['full_name']}`")
 st.sidebar.markdown(f"**Role:** `{current_user['role']}` | **ID:** `{current_user['username']}`")
 
+# Sidebar ML Model Selector
 st.sidebar.markdown("---")
 st.sidebar.title("🤖 ML Model Engine")
 selected_model_name = st.sidebar.selectbox(
     "Choose Active Algorithm:",
-    ["Random Forest", "XGBoost", "Baseline (Decision Tree)"]
+    ["Random Forest", "XGBoost", "Baseline (Decision Tree)"],
+    index=0 # Default to winning Random Forest ensemble engine
 )
 
 model_file_map = {
@@ -296,6 +296,11 @@ model_file_map = {
     "XGBoost": "xgboost.pkl",
     "Baseline (Decision Tree)": "decision_tree.pkl"
 }
+
+@st.cache_resource
+def load_engine(model_file: str):
+    models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
+    return StressPredictionEngine(models_dir=models_dir, model_file=model_file)
 
 try:
     active_file = model_file_map.get(selected_model_name, "best_stress_model.pkl")
@@ -345,16 +350,31 @@ if current_user['role'] == 'User':
             std_HR = st.slider("Std Dev Heart Rate", 0.5, 15.0, 4.0, 0.1)
             RMSSD = st.slider("RMSSD HRV (ms)", 5.0, 90.0, float(d_rmssd), 0.5)
             SDNN = st.slider("SDNN HRV (ms)", 10.0, 100.0, float(d_sdnn), 0.5)
+            
+            if RMSSD < 28.0:
+                st.caption("⚠️ **RMSSD:** Low HRV (Sympathetic Stress Marker)")
+            else:
+                st.caption("✅ **RMSSD:** Normal Resting Parasympathetic HRV")
 
         with col2:
             mean_EDA = st.slider("Mean EDA Level (µS)", 0.1, 12.0, float(d_eda), 0.1)
             std_EDA = st.slider("Std Dev EDA", 0.01, 1.5, 0.15, 0.01)
             SCR_peaks = st.slider("SCR Peak Count", 0, 15, int(d_scr), 1)
+            
+            if mean_EDA > 2.0 or SCR_peaks >= 4:
+                st.caption("⚠️ **GSR/EDA:** High Sympathetic Electrodermal Arousal")
+            else:
+                st.caption("✅ **GSR/EDA:** Baseline Electrodermal Level")
 
         with col3:
             mean_Temp = st.slider("Skin Temperature (°C)", 28.0, 37.0, float(d_temp), 0.1)
             std_Temp = st.slider("Std Dev Skin Temp", 0.01, 0.5, 0.05, 0.01)
             mean_RESP = st.slider("Respiration Rate (rpm)", 10.0, 35.0, float(d_resp), 0.5)
+            
+            if mean_Temp < 31.0:
+                st.caption("⚠️ **Skin Temp:** Low (Stress Vasoconstriction Drop)")
+            else:
+                st.caption("✅ **Skin Temp:** Normal Skin Temperature")
 
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🚀 Analyze & Log Stress Assessment", type="primary", use_container_width=True):
