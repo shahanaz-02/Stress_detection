@@ -15,9 +15,14 @@ import seaborn as sns
 # Add src to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from predict import StressPredictionEngine
-from database import (init_db, authenticate_user, register_user, 
-                      save_stress_log, get_user_logs, get_all_logs, get_admin_analytics)
+try:
+    from src.predict import StressPredictionEngine
+    from src.database import (init_db, authenticate_user, register_user, 
+                              save_stress_log, get_user_logs, get_all_logs, get_admin_analytics)
+except ImportError:
+    from predict import StressPredictionEngine
+    from database import (init_db, authenticate_user, register_user, 
+                          save_stress_log, get_user_logs, get_all_logs, get_admin_analytics)
 
 # Initialize Database on app start
 init_db()
