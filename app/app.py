@@ -415,6 +415,23 @@ if current_user['role'] == 'User':
                 plt.tight_layout()
                 st.pyplot(fig)
 
+            # Prominent Natural Language Stress Cause Explainer Card
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.subheader("💡 AI Physiological Stress Cause Analysis")
+            
+            clin_exp = result.get('clinical_explanation', {})
+            st.markdown(f"**Overview:** {clin_exp.get('summary_sentence', '')}")
+            
+            if result['prediction_class'] == 1 and clin_exp.get('primary_stress_causes'):
+                st.error("### 🚨 Key Physiological Values That Triggered High Stress:")
+                for item in clin_exp['primary_stress_causes']:
+                    st.markdown(f"- {item['explanation']}")
+                    
+            if clin_exp.get('protective_relaxed_factors'):
+                st.success("### 🟢 Physiological Values Resisting Stress (Relaxed Factors):")
+                for item in clin_exp['protective_relaxed_factors']:
+                    st.markdown(f"- {item['explanation']}")
+
     with user_tab2:
         st.markdown("### 📜 Your Assessment History")
         user_logs = get_user_logs(current_user['id'])

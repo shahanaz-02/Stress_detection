@@ -92,13 +92,102 @@ class StressPredictionEngine:
         # Sort by absolute impact magnitude
         contributions_df = pd.DataFrame(contributions).sort_values(by="shap_impact", key=abs, ascending=False)
         
+        # Generate Human-Readable Natural Language XAI Cause Explanation
+        clinical_narrative = self._generate_clinical_explanation(
+            stress_label, confidence, contributions_df, X_raw.iloc[0].to_dict()
+        )
+        
         return {
             "prediction_class": pred_class,
             "prediction_label": stress_label,
             "confidence_percentage": round(confidence, 2),
             "stress_probability": round(float(pred_probs[1] * 100.0), 2),
             "model_used": self.model_name,
-            "top_contributing_features": contributions_df.to_dict(orient="records")
+            "top_contributing_features": contributions_df.to_dict(orient="records"),
+            "clinical_explanation": clinical_narrative
+        }
+
+    def _generate_clinical_explanation(self, label: str, confidence: float, contrib_df: pd.DataFrame, raw_vals: dict) -> dict:
+        """
+        Translates SHAP mathematical attributions into plain English physiological explanations.
+        Identifies the exact input values that triggered high stress or relaxed states.
+        """
+        positive_drivers = contrib_df[contrib_df['shap_impact'] > 0.01].sort_values(by='shap_impact', ascending=False)
+        negative_drivers = contrib_df[contrib_df['shap_impact'] < -0.01].sort_values(by='shap_impact', ascending=True)
+        
+        feature_labels = {
+            'mean_HR': ('Mean Heart Rate', 'bpm'),
+            'std_HR': ('Heart Rate Fluctuation', 'bpm'),
+            'RMSSD': ('Parasympathetic HRV (RMSSD)', 'ms'),
+            'SDNN': ('Total HRV Variability (SDNN)', 'ms'),
+            'mean_EDA': ('Skin Conductance (GSR/EDA)', 'µS'),
+            'std_EDA': ('EDA Variation', 'µS'),
+            'SCR_peaks': ('Skin Conductance Response Bursts', 'peaks'),
+            'mean_Temp': ('Skin Temperature', '°C'),
+            'std_Temp': ('Skin Temp Fluctuation', '°C'),
+            'mean_RESP': ('Respiration Rate', 'rpm'),
+            'HRV_ratio': ('Autonomic Balance Ratio (HRV Ratio)', 'index'),
+            'EDA_activation': ('Electrodermal Activation Index', 'index'),
+            'HR_CV': ('Normalized HR Coefficient of Variation', 'index')
+        }
+
+        feature_descriptions = {
+            'EDA_activation': "High skin conductance combined with frequent SCR bursts indicated sympathetic nervous system fight-or-flight arousal.",
+            'mean_EDA': "Elevated electrodermal activity level indicated increased sweat gland activation driven by stress.",
+            'SCR_peaks': "Frequent electrodermal response bursts indicated active sympathetic stress triggers.",
+            'RMSSD': "Reduced Heart Rate Variability (RMSSD) indicated parasympathetic withdrawal and high autonomic stress.",
+            'HRV_ratio': "A low HRV ratio indicated sympathetic dominance over parasympathetic rest.",
+            'mean_Temp': "Low skin temperature indicated stress-induced peripheral vasoconstriction (cold skin response).",
+            'mean_HR': "Elevated heart rate indicated cardiac sympathetic stimulation.",
+            'mean_RESP': "Elevated respiration rate indicated rapid stress breathing (tachypnea).",
+            'std_HR': "Increased heart rate fluctuation indicated unstable cardiac rhythm under stress.",
+            'std_Temp': "Temperature fluctuations indicated unstable peripheral blood flow during stress."
+        }
+
+        causes = []
+        for _, row in positive_drivers.iterrows():
+            f = row['feature']
+            val = row['value']
+            shap_score = row['shap_impact']
+            fname, unit = feature_labels.get(f, (f, ''))
+            desc = feature_descriptions.get(f, "Elevated risk contribution towards stress.")
+            
+            causes.append({
+                'feature_key': f,
+                'feature_name': fname,
+                'value': f"{val} {unit}".strip(),
+                'shap_impact': shap_score,
+                'explanation': f"**{fname} = {val} {unit}** (Impact: +{shap_score:.3f}): {desc}"
+            })
+            
+        protective = []
+        for _, row in negative_drivers.iterrows():
+            f = row['feature']
+            val = row['value']
+            shap_score = abs(row['shap_impact'])
+            fname, unit = feature_labels.get(f, (f, ''))
+            
+            protective.append({
+                'feature_key': f,
+                'feature_name': fname,
+                'value': f"{val} {unit}".strip(),
+                'shap_impact': shap_score,
+                'explanation': f"**{fname} = {val} {unit}** (Helped reduce stress score by -{shap_score:.3f})"
+            })
+
+        if label == "STRESSED":
+            if causes:
+                top_cause = causes[0]['feature_name']
+                summary = f"High stress prediction ({confidence:.1f}% confidence) was primarily triggered by **{top_cause}** and {len(causes)-1} other physiological markers."
+            else:
+                summary = "High stress prediction was triggered by combined physiological marker shifts."
+        else:
+            summary = f"Relaxed/Non-Stressed prediction ({confidence:.1f}% confidence) driven by healthy parasympathetic markers and low electrodermal arousal."
+
+        return {
+            "summary_sentence": summary,
+            "primary_stress_causes": causes,
+            "protective_relaxed_factors": protective
         }
 
 if __name__ == "__main__":
