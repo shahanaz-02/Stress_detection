@@ -27,30 +27,36 @@ An academic Machine Learning and Software Engineering system for **Physiological
 ```
 Stress_detection/
 ├── data/
-│   ├── raw/WESAD/                        # Authentic WESAD recording windows
-│   └── processed/wesad_features.csv      # Signal feature matrix (3,300 rows)
+│   ├── raw/WESAD/                        # Authentic continuous 700Hz WESAD pickle files (S2..S17)
+│   └── processed/wesad_features.csv      # Extracted physiological feature table (3,310 rows)
+├── scripts/
+│   └── download_wesad.py                 # Resumable 2.09 GB WESAD dataset downloader & extractor
 ├── src/
-│   ├── data_loader.py                    # Dataset loader & window processing trigger
+│   ├── data_loader.py                    # 700Hz continuous signal loader & 60s sliding window parser
 │   ├── preprocessing.py                 # Strict fold-level scaler fitting (fit_scale_fold)
-│   ├── feature_extraction.py             # Signal feature calculation (ECG, EDA, Temp, Resp)
+│   ├── feature_extraction.py             # Signal feature calculation (ECG R-peaks, EDA, Temp, Resp)
 │   ├── train.py                          # 15-Fold Leave-One-Subject-Out CV & serialization
 │   ├── evaluate.py                       # Metric evaluation, confusion matrix & ROC curves
 │   ├── explainability.py                 # SHAP global & local feature attributions
+│   ├── predict.py                        # Reusable inference engine & natural language XAI
 │   ├── database.py                       # SQLite database manager & auth functions
 │   ├── test_system.py                    # Automated boundary test suite
 │   └── utils.py                          # Path constants & directory helpers
 ├── models/
 │   ├── random_forest.pkl                 # Serialized Random Forest model artifact
-│   └── xgboost.pkl                       # Serialized XGBoost model artifact
+│   ├── xgboost.pkl                       # Serialized XGBoost model artifact
+│   ├── decision_tree.pkl                 # Serialized Decision Tree baseline artifact
+│   ├── best_stress_model.pkl             # Top performing model link
+│   └── scaler.pkl                        # Serving feature scaler
 ├── results/
 │   ├── metrics.csv                       # Aggregated LOSO evaluation metrics CSV
 │   ├── confusion_matrix.png              # LOSO Confusion Matrix figure
 │   ├── roc_curve.png                     # LOSO ROC Curve figure
 │   └── shap_summary.png                  # Global SHAP summary plot
 ├── app/
-│   └── app.py                            # Streamlit Web Application
+│   └── app.py                            # Multi-Role Streamlit Web Application
 ├── requirements.txt                      # Project dependencies
-└── README.md                             # Documentation
+└── README.md                             # Comprehensive Documentation
 ```
 
 ---
@@ -98,7 +104,7 @@ Performance evaluated across **15 independent test folds** (where the test subje
 
 ---
 
-## 🔍 SHAP Explainable AI (XAI) Output
+## 🔍 SHAP Explainable AI (XAI) & Stress Drivers
 
 Global feature importances and local per-instance predictions are generated via `shap.TreeExplainer`:
 - **Top Risk Drivers:** `EDA_activation`, `RMSSD`, `mean_EDA`, `HRV_ratio`, `mean_Temp`.
@@ -124,18 +130,21 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-### 2. Run 15-Fold LOSO Training & Evaluation Pipeline
+### 2. Download & Extract Authentic WESAD Dataset (Optional)
+*(Includes HTTP range resume support for downloading official 2.09 GB WESAD archive)*
 ```bash
+python scripts/download_wesad.py
+```
+
+### 3. Parse Continuous Signals & Run 15-Fold LOSO Training Pipeline
+```bash
+python src/data_loader.py
 python src/train.py
 ```
 
-### 3. Generate SHAP Visualizations
+### 4. Generate SHAP Visualizations & Run System Tests
 ```bash
 python src/explainability.py
-```
-
-### 4. Run Automated System Boundary Tests
-```bash
 python src/test_system.py
 ```
 
