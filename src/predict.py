@@ -112,8 +112,9 @@ class StressPredictionEngine:
         Translates SHAP mathematical attributions into plain English physiological explanations.
         Identifies the exact input values that triggered high stress or relaxed states.
         """
-        positive_drivers = contrib_df[contrib_df['shap_impact'] > 0.01].sort_values(by='shap_impact', ascending=False)
-        negative_drivers = contrib_df[contrib_df['shap_impact'] < -0.01].sort_values(by='shap_impact', ascending=True)
+        # Separate features elevating risk vs lowering risk (any positive/negative SHAP value)
+        positive_drivers = contrib_df[contrib_df['shap_impact'] > 0.0].sort_values(by='shap_impact', ascending=False)
+        negative_drivers = contrib_df[contrib_df['shap_impact'] < 0.0].sort_values(by='shap_impact', ascending=True)
         
         feature_labels = {
             'mean_HR': ('Mean Heart Rate', 'bpm'),
@@ -156,8 +157,8 @@ class StressPredictionEngine:
                 'feature_key': f,
                 'feature_name': fname,
                 'value': f"{val} {unit}".strip(),
-                'shap_impact': shap_score,
-                'explanation': f"**{fname} = {val} {unit}** (Impact: +{shap_score:.3f}): {desc}"
+                'shap_impact': round(float(shap_score), 4),
+                'explanation': f"**{fname} ({val} {unit})**: {desc} (SHAP impact: +{shap_score:.3f})"
             })
             
         protective = []
@@ -166,23 +167,36 @@ class StressPredictionEngine:
             val = row['value']
             shap_score = abs(row['shap_impact'])
             fname, unit = feature_labels.get(f, (f, ''))
-            
+            desc = "Helped lower overall stress risk score."
+            if f == 'RMSSD':
+                desc = "Healthy resting HRV parasympathetic activity."
+            elif f == 'mean_RESP':
+                desc = "Calm and steady respiration rate."
+            elif f == 'mean_EDA':
+                desc = "Baseline non-aroused electrodermal activity."
+            elif f == 'HRV_ratio':
+                desc = "Favorable autonomic balance supporting recovery."
+                
             protective.append({
                 'feature_key': f,
                 'feature_name': fname,
                 'value': f"{val} {unit}".strip(),
-                'shap_impact': shap_score,
-                'explanation': f"**{fname} = {val} {unit}** (Helped reduce stress score by -{shap_score:.3f})"
+                'shap_impact': round(float(shap_score), 4),
+                'explanation': f"**{fname} ({val} {unit})**: {desc} (Reduced stress risk by -{shap_score:.3f})"
             })
 
         if label == "STRESSED":
             if causes:
-                top_cause = causes[0]['feature_name']
-                summary = f"High stress prediction ({confidence:.1f}% confidence) was primarily triggered by **{top_cause}** and {len(causes)-1} other physiological markers."
+                top_causes_str = ", ".join([f"**{c['feature_name']}** ({c['value']})" for c in causes[:3]])
+                summary = f"The AI model classified this state as **STRESSED** with **{confidence:.1f}% confidence**. High stress was primarily driven by: {top_causes_str}."
             else:
-                summary = "High stress prediction was triggered by combined physiological marker shifts."
+                summary = f"The AI model classified this state as **STRESSED** with **{confidence:.1f}% confidence** based on physiological marker shifts."
         else:
-            summary = f"Relaxed/Non-Stressed prediction ({confidence:.1f}% confidence) driven by healthy parasympathetic markers and low electrodermal arousal."
+            if protective:
+                top_prot_str = ", ".join([f"**{p['feature_name']}** ({p['value']})" for p in protective[:3]])
+                summary = f"The AI model classified this state as **NON-STRESSED / RELAXED** with **{confidence:.1f}% confidence**. Calm state maintained by: {top_prot_str}."
+            else:
+                summary = f"The AI model classified this state as **NON-STRESSED / RELAXED** with **{confidence:.1f}% confidence**."
 
         return {
             "summary_sentence": summary,

@@ -417,20 +417,37 @@ if current_user['role'] == 'User':
 
             # Prominent Natural Language Stress Cause Explainer Card
             st.markdown("<br>", unsafe_allow_html=True)
-            st.subheader("💡 AI Physiological Stress Cause Analysis")
+            st.markdown("### 💡 AI Physiological Stress Cause Analysis")
             
             clin_exp = result.get('clinical_explanation', {})
-            st.markdown(f"**Overview:** {clin_exp.get('summary_sentence', '')}")
             
-            if result['prediction_class'] == 1 and clin_exp.get('primary_stress_causes'):
-                st.error("### 🚨 Key Physiological Values That Triggered High Stress:")
-                for item in clin_exp['primary_stress_causes']:
-                    st.markdown(f"- {item['explanation']}")
-                    
-            if clin_exp.get('protective_relaxed_factors'):
-                st.success("### 🟢 Physiological Values Resisting Stress (Relaxed Factors):")
-                for item in clin_exp['protective_relaxed_factors']:
-                    st.markdown(f"- {item['explanation']}")
+            # Overview Box
+            summary_txt = clin_exp.get('summary_sentence', f"Model classified state as **{result['prediction_label']}** ({result['confidence_percentage']}% confidence).")
+            st.info(f"**Overview:** {summary_txt}")
+            
+            causes_list = clin_exp.get('primary_stress_causes', [])
+            protective_list = clin_exp.get('protective_relaxed_factors', [])
+            
+            if result['prediction_class'] == 1:
+                if causes_list:
+                    st.error("#### 🚨 Key Physiological Values That Caused High Stress:")
+                    for item in causes_list[:4]:
+                        st.markdown(f"- {item['explanation']}")
+                        
+                if protective_list:
+                    st.success("#### 🟢 Physiological Factors Resisting Stress (Relaxed Markers):")
+                    for item in protective_list[:3]:
+                        st.markdown(f"- {item['explanation']}")
+            else:
+                if protective_list:
+                    st.success("#### 🟢 Key Physiological Factors Maintaining Relaxed State:")
+                    for item in protective_list[:4]:
+                        st.markdown(f"- {item['explanation']}")
+                        
+                if causes_list:
+                    st.warning("#### ⚠️ Mild Elevation Risk Drivers:")
+                    for item in causes_list[:2]:
+                        st.markdown(f"- {item['explanation']}")
 
     with user_tab2:
         st.markdown("### 📜 Your Assessment History")
